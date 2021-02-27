@@ -3,7 +3,14 @@
 #include <stdbool.h>
 #include <string.h>
 
+// Quantidade de Bytes para cada tipo de dados
+#define DOI_SIZE 10
+#define AUTHOR_NAME_SIZE 64
+#define TITLE_SIZE 64
+#define YEAR_SIZE 10
+
 /*
+    ---- Cálculo do jump size ----
     char doi[10] -> 10 bytes;
     char author_name[64] -> 64 bytes;
     char title[64] - > 64 bytes;
@@ -12,20 +19,16 @@
     JUMP_SIZE = 10 + 64 + 64 + 10 = 148 bytes por pulo
 */
 
-// Esta parte pode ser configurável!
-#define DOI_SIZE 10
-#define AUTHOR_NAME_SIZE 64
-#define TITLE_SIZE 64
-#define YEAR_SIZE 10
-
 #define JUMP_SIZE (DOI_SIZE + AUTHOR_NAME_SIZE + TITLE_SIZE + YEAR_SIZE)
+
+// Nome dos arquivos que são gerados pelo programa
 #define FILE_NAME "data.bin"
 #define REWRITE_FILE_NAME "RWdata.bin"
 
-// Apenas para facilitar limpeza de tela :)
+// Utilitário para limpar o terminal independente do OS
 #ifdef _WIN32
 #define CLEAR "cls"
-#else //In any other OS
+#else
 #define CLEAR "clear"
 #endif
 
@@ -42,9 +45,7 @@ typedef struct avl_tree{
 // Utilizada como multiplicador no JUMP_SIZE
 int file_bytes = 0;
 
-//unsigned int saveAndExitByte = 0;
-
-//######################################## HEADERS AVL ###################################
+//########################## HEADERS Árvore AVL ##############################################
 int max(int a, int b);
 int height(avl_node *n);
 int getBalance(avl_node *N);
@@ -57,7 +58,7 @@ avl_node* deleteNode(avl_node* root, int key);
 unsigned int search(avl_node *root, int key);
 void printTree(avl_node *root);
 
-//######################################## HEADERS Arquivo #################################
+//########################## HEADERS Gerenciamento de arquivo  #################################
 avl_node* insertNewData(avl_node *root);
 void recoverFromFile(avl_node *root, int key);
 void editFromFile(avl_node *root, int key);
@@ -68,26 +69,77 @@ void saveAndQuit(avl_node *root);
 
 int main(){
 
-    //printf("%d", JUMP_SIZE);
+    system(CLEAR);
 
-    avl_node *root = NULL;
-
-    //root = insertNewData(root);
-    //root = insertNewData(root);
-    //root = insertNewData(root);
-    //root = insertNewData(root);
-    //root = insertNewData(root);
-    //root = deleteNode(root, 4);
-    //printTree(root);
-    //saveAndQuit(root);
+    avl_node *root = NULL; 
     root = rebuild_tree_from_file(root);
-    printTree(root);
-    recoverFromFile(root, 2);
 
-    //editFromFile(root, 2);
+    if (root == NULL){
+        printf("\n\t---- AVISO ----\n");
+        printf("Nenhum arquivo encontrado, criando nova base de dados....\n\n");
+    }
 
-    //recoverFromFile(root, 2);
-    //recoverFromFile(root, 2);
+    bool exit = false;
+    int op;
+    int key;
+
+    while (!exit) {
+        printf("\n\t---- Bem-vindo! ----\n\n");
+        printf("Selecione uma das opcoes:\n");
+        printf("(1) - Criar novo livro\n");
+        printf("(2) - Editar livro existente\n");
+        printf("(3) - Mostrar livro existente\n");
+        printf("(4) - REMOVER livro existente\n");
+        printf("(5) - Finalizar programa e salvar banco de dados\n\n");
+        printf("Resposta: ");
+        scanf("%d", &op);
+
+        switch (op){
+            case 1:
+                root = insertNewData(root);
+                break;
+
+            case 2:
+                printf("\nDigite o DOI: ");
+                setbuf(stdin, NULL);
+                scanf("%d", &key);
+                editFromFile(root, key);
+                break;
+
+            case 3:
+                printf("\nDigite o DOI: ");
+                setbuf(stdin, NULL);
+                scanf("%d", &key);
+                recoverFromFile(root, key);
+                break;
+
+            case 4:
+                printf("\nDigite o DOI: ");
+                setbuf(stdin, NULL);
+                scanf("%d", &key);
+
+                if(search(root, key) == -1)
+                    printf("\nDOI informado ja se encontra no sistema!\n");
+                else
+                    root = deleteNode(root, key);
+                break;
+
+            case 5:
+                printf("Finalizando...\n");
+                saveAndQuit(root);
+                exit = true;
+                break;
+
+            case -1: // Opção de DEBUG sempre faz bem
+                printf("\n----Iniciando DEBUG da arvore----\n");
+                printTree(root);
+                break;
+                
+            default:
+                printf("\nOpcao invalida....\n");
+                break;
+        }
+    }
 
     return 0;
 }
@@ -96,10 +148,12 @@ int main(){
 //                                      Utilitários
 //############################################################################################
 
+// Retorna o maior valor entre A e B
 int max(int a, int b){ 
     return (a > b)? a : b; 
 }
 
+// Retorna a altura do node
 int height(avl_node *n){ 
     if (n == NULL){
         return 0;
@@ -107,6 +161,7 @@ int height(avl_node *n){
     return n->height; 
 }
 
+// Calcula o balanceamento do node
 int getBalance(avl_node *N){ 
     if (N == NULL){
         return 0;
@@ -115,42 +170,38 @@ int getBalance(avl_node *N){
     return height(N->left) - height(N->right); 
 }
 
+// Rotação a direita
 avl_node* rightRotate(avl_node *y){ 
     avl_node *x = y->left; 
     avl_node *T2 = x->right; 
   
-    // Perform rotation 
     x->right = y; 
     y->left = T2; 
   
-    // Update heights 
     y->height = max(height(y->left), height(y->right))+1; 
     x->height = max(height(x->left), height(x->right))+1; 
   
-    // Return new root 
     return x; 
 }
 
+// Rotação a esquerda
 avl_node* leftRotate(avl_node *x){ 
     avl_node *y = x->right; 
     avl_node *T2 = y->left; 
   
-    // Perform rotation 
     y->left = x; 
     x->right = T2; 
   
-    //  Update heights 
     x->height = max(height(x->left), height(x->right))+1; 
     y->height = max(height(y->left), height(y->right))+1; 
   
-    // Return new root 
     return y; 
 }
 
+// Encontra o node de menor valor (usado na remoção de um node)
 avl_node* minValueNode(avl_node *node){ 
     avl_node *current = node; 
   
-    /* loop down to find the leftmost leaf */
     while (current->left != NULL) {
         current = current->left;
     }
@@ -162,6 +213,7 @@ avl_node* minValueNode(avl_node *node){
 //                               Árvore - Operações
 //############################################################################################
 
+// Cria novo node
 avl_node* newNode(int key){ 
     avl_node* node = (avl_node*)malloc(sizeof(avl_node)); 
     node->key   = key; 
@@ -173,8 +225,8 @@ avl_node* newNode(int key){
     return(node); 
 }
 
+// Adicionada um novo node na árvore
 avl_node* insert(avl_node* node, int key){ 
-    /* 1.  Perform the normal BST rotation */
     if (node == NULL){
         return(newNode(key));
     }
@@ -187,134 +239,96 @@ avl_node* insert(avl_node* node, int key){
         node->right = insert(node->right, key);
     }
          
-    else{
+    else{ // Proibe inserção de chaves repetidas
         return node;
-    } // Equal keys not allowed 
+    } 
         
   
-    /* 2. Update height of this ancestor node */
     node->height = 1 + max(height(node->left), height(node->right)); 
   
-    /* 3. Get the balance factor of this ancestor 
-          node to check whether this node became 
-          unbalanced */
     int balance = getBalance(node); 
   
-    // If this node becomes unbalanced, then there are 4 cases 
-  
-    // Left Left Case 
     if (balance > 1 && key < node->left->key){
         return rightRotate(node);
     }
          
-  
-    // Right Right Case 
     if (balance < -1 && key > node->right->key){
         return leftRotate(node);
     }
          
-    // Left Right Case 
     if (balance > 1 && key > node->left->key){ 
         node->left =  leftRotate(node->left); 
         return rightRotate(node); 
     } 
   
-    // Right Left Case 
     if (balance < -1 && key < node->right->key){ 
         node->right = rightRotate(node->right); 
         return leftRotate(node); 
     } 
-  
-    /* return the (unchanged) node pointer */
+
     return node; 
 } 
 
+// Remove node da árvore
 avl_node* deleteNode(avl_node* root, int key){ 
-    // STEP 1: PERFORM STANDARD BST DELETE 
-  
+
     if (root == NULL){
         return root;
     }
          
-    // If the key to be deleted is smaller than the 
-    // root's key, then it lies in left subtree 
     if (key < root->key){
         root->left = deleteNode(root->left, key);
     } 
          
-  
-    // If the key to be deleted is greater than the 
-    // root's key, then it lies in right subtree 
     else if(key > root->key){
         root->right = deleteNode(root->right, key);
     } 
          
-  
-    // if key is same as root's key, then This is 
-    // the node to be deleted 
-    else{ 
-        // node with only one child or no child 
+    else{  
         if((root->left == NULL) || (root->right == NULL)){ 
             avl_node *temp = root->left ? root->left : 
                                              root->right; 
   
-            // No child case 
             if (temp == NULL){ 
                 temp = root; 
                 root = NULL; 
             } 
             else{
                 *root = *temp; 
-            } // One child case 
-             // Copy the contents of 
-            // the non-empty child 
+            }
+
             free(temp); 
         } 
         else{ 
-            // node with two children: Get the inorder 
-            // successor (smallest in the right subtree) 
             avl_node *temp = minValueNode(root->right); 
   
-            // Copy the inorder successor's data to this node 
             root->key = temp->key; 
-  
-            // Delete the inorder successor 
+
             root->right = deleteNode(root->right, temp->key); 
         } 
     } 
   
-    // If the tree had only one node then return 
     if (root == NULL){
         return root; 
     }
       
-    // STEP 2: UPDATE HEIGHT OF THE CURRENT NODE 
     root->height = 1 + max(height(root->left), height(root->right)); 
   
-    // STEP 3: GET THE BALANCE FACTOR OF THIS NODE (to 
-    // check whether this node became unbalanced) 
     int balance = getBalance(root); 
   
-    // If this node becomes unbalanced, then there are 4 cases 
-  
-    // Left Left Case 
     if (balance > 1 && getBalance(root->left) >= 0){
         return rightRotate(root);
     } 
          
-  
-    // Left Right Case 
     if (balance > 1 && getBalance(root->left) < 0){ 
         root->left =  leftRotate(root->left); 
         return rightRotate(root); 
     } 
   
-    // Right Right Case 
     if (balance < -1 && getBalance(root->right) <= 0){
         return leftRotate(root);
     }
          
-    // Right Left Case 
     if (balance < -1 && getBalance(root->right) > 0){ 
         root->right = rightRotate(root->right); 
         return leftRotate(root); 
@@ -323,6 +337,7 @@ avl_node* deleteNode(avl_node* root, int key){
     return root; 
 }
 
+// Realiza a busca de um nó pelo DOI, e retorna o byte onde este DOI está no arquivo
 unsigned int search(avl_node *root, int key){
 
     if(root == NULL){
@@ -345,6 +360,8 @@ unsigned int search(avl_node *root, int key){
 //############################################################################################
 //                               Gerenciamento do arquivo
 //############################################################################################
+
+// Utilitário que realiza toda a inserção dentro da árvore e arquivo
 avl_node* insertNewData(avl_node *root){
     FILE *fp;
     
@@ -356,9 +373,10 @@ avl_node* insertNewData(avl_node *root){
     char yearStr[YEAR_SIZE];
 
     system(CLEAR);
-    printf("\t----- Insersao -----\n\n");
+    printf("\t----- Insercao -----\n\n");
 
     printf("Digite o DOI: ");
+    setbuf(stdin, NULL);
     scanf("%d", &doi);
     snprintf(doiStr, sizeof(doiStr), "%d", doi);
     strcat(doiStr, "\n");
@@ -374,13 +392,14 @@ avl_node* insertNewData(avl_node *root){
     strcat(title, "\n");
 
     printf("Digite o ano de publicacao: ");
+    setbuf(stdin, NULL);
     scanf("%d", &year);
     snprintf(yearStr, sizeof(yearStr), "%d", year);
     strcat(yearStr, "\n");
 
     root = insert(root, doi);
 
-    if((fp = fopen(FILE_NAME, "a+b")) == NULL){ // Se o arquivo existir
+    if((fp = fopen(FILE_NAME, "a+b")) == NULL){ // Se o arquivo não existir, crie-o
         fclose(fp);
         fp = fopen(FILE_NAME, "w+b");
     }
@@ -391,11 +410,10 @@ avl_node* insertNewData(avl_node *root){
     fwrite(yearStr, sizeof(yearStr), sizeof(char), fp);
     fclose(fp);
 
-    file_bytes++;
-
     return root;
 }
 
+// Recupera as informações do arquivo dada uma certa chave
 void recoverFromFile(avl_node *root, int key){
     FILE *fp;
     
@@ -446,6 +464,7 @@ void recoverFromFile(avl_node *root, int key){
     }
 }
 
+// Edita os valores de um certo dado dentro do arquivo, este dado é encontrado pelo DOI
 void editFromFile(avl_node *root, int key){
     FILE *fp;
     
@@ -467,15 +486,7 @@ void editFromFile(avl_node *root, int key){
             char title[TITLE_SIZE];
             int year;
             char yearStr[YEAR_SIZE];
-            /*
-                Realizei o bloqueio para permitir que edito o doi, pois vai ser um inferno
-                do kct, caso o cara faça isso, pq a árvore vai quebrar muito hard
 
-                printf("Digite o DOI: ");
-                scanf("%d", &doi);
-                snprintf(doiStr, sizeof(doiStr), "%d", doi);
-                strcat(doiStr, "\n");
-            */
             printf("Digite o nome do autor: ");
             setbuf(stdin, NULL);
             scanf("%[^\n]s", author_name);
@@ -514,6 +525,7 @@ void editFromFile(avl_node *root, int key){
     }
 }
 
+// Reconstroi a árvore caso exista previamente um arquivo de dados
 avl_node* rebuild_tree_from_file(avl_node *root){
     FILE *fp;
 
@@ -525,21 +537,22 @@ avl_node* rebuild_tree_from_file(avl_node *root){
         unsigned int auxByte;
         char buffer[DOI_SIZE];
         int auxKey;
-        bool teste = false;
-
-        while (!teste){
-            auxByte = file_bytes * JUMP_SIZE;
+        bool stop = false;
+        int cnt = 0;
+        while (!stop){
+            auxByte = cnt * JUMP_SIZE;
             fseek(fp, auxByte, 0);
             fread(buffer, DOI_SIZE, sizeof(char), fp);
             auxKey = atoi(buffer);
 
             root = insert(root, auxKey);
+            cnt++;
 
             if(getc(fp) != EOF){
                 fseek(fp ,auxByte, 0);
             }
             else{
-                teste = true;
+                stop = true;
             }
         }
 
@@ -548,6 +561,7 @@ avl_node* rebuild_tree_from_file(avl_node *root){
     }
 }
 
+// Utilizado para percorrer a árvore toda e escrever os valores referentes a cada node no arquivo
 void preOrder(avl_node *root, FILE *fp, FILE *fp2){ 
     if(root != NULL){ 
         char readBuffer[64];
@@ -584,12 +598,16 @@ void preOrder(avl_node *root, FILE *fp, FILE *fp2){
     } 
 }
 
-
+// Chamaa rotina de salvar o arquivo e finalizar o programa
 void saveAndQuit(avl_node *root){
     FILE *fp;
     FILE *fp2;
 
-    if ((fp2 = fopen(REWRITE_FILE_NAME, "w+b")) == NULL){
+    if(root == NULL){
+        printf("\nArvore vazia, nada sera salvo...\n");
+    }
+
+    else if ((fp2 = fopen(REWRITE_FILE_NAME, "w+b")) == NULL){
         printf("\nDeu merda ao salvar o arquivo :(\n");
     }
 
@@ -611,7 +629,8 @@ void saveAndQuit(avl_node *root){
 //############################################################################################
 //                                      DEBUG!
 //############################################################################################
- 
+
+// Utiliada para navegar diretamente pela árvore, apenas usada para casos de DEBUG
 void printTree(avl_node *root){
     avl_node *aux = root;
     int op;
