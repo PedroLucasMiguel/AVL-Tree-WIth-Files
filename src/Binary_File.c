@@ -32,7 +32,7 @@ int main(){
     strcpy(b.year, "2024\n");
 
 
-    fp = fopen("teste.bin", "wb+");
+    fp = fopen("teste.bin", "w+");
 
     fwrite(a.doi, sizeof(a.doi), sizeof(char), fp);
     fwrite(a.year, sizeof(a.year), sizeof(char), fp);
